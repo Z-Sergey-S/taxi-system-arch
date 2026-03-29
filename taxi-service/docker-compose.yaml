@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  taxi-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - WORKER_THREADS=4
+      - WORKER_FS_THREADS=2
+      - LOGGER_LEVEL=info
+    volumes:
+      - ./configs:/app/configs:ro
+      - ./openapi.yaml:/app/openapi.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped

@@ -1,0 +1,128 @@
+components_manager:
+    task_processors:
+        main-task-processor:
+            worker_threads: $worker-threads
+
+        fs-task-processor:
+            worker_threads: $worker-fs-threads
+
+    default_task_processor: main-task-processor
+
+    components:
+        server:
+            listener:
+                port: $server-port
+                task_processor: main-task-processor
+
+        logging:
+            fs-task-processor: fs-task-processor
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: $logger-level
+                    overflow_behavior: discard
+
+        dynamic-config:
+            defaults:
+                HTTP_CLIENT_CONNECTION_POOL_SIZE: 1000
+                POSTGRES_DEFAULT_COMMAND_CONTROL:
+                    network_timeout_ms: 750
+                    statement_timeout_ms: 500
+
+        testsuite-support: {}
+
+        http-client:
+        http-client-core:
+            load-enabled: $is_testing
+            fs-task-processor: fs-task-processor
+
+        dns-client:
+            fs-task-processor: fs-task-processor
+
+        tests-control:
+            load-enabled: $is-testing
+            path: /tests/{action}
+            method: POST
+            task_processor: main-task-processor
+
+        # === STORAGE COMPONENT ===
+        taxi-storage:
+
+        # === SWAGGER HANDLERS ===
+        handler-openapi:
+            path: /docs/openapi.json
+            method: GET
+            task_processor: main-task-processor
+
+        handler-swagger-ui:
+            path: /docs
+            method: GET
+            task_processor: main-task-processor
+            url_trailing_slash: strict-match
+
+        # === HEALTH CHECK ===
+        handler-ping:
+            path: /ping
+            method: GET
+            task_processor: main-task-processor
+            throttling_enabled: false
+            url_trailing_slash: strict-match
+
+        # === AUTH ENDPOINTS ===
+        handler-auth-login:
+            path: /api/v1/auth/login
+            method: POST
+            task_processor: main-task-processor
+
+        handler-auth-register:
+            path: /api/v1/auth/register
+            method: POST
+            task_processor: main-task-processor
+
+        # === USER ENDPOINTS ===
+        handler-register-user:
+            path: /api/v1/users
+            method: POST
+            task_processor: main-task-processor
+
+        handler-find-user-by-login:
+            path: /api/v1/users/{login}
+            method: GET
+            task_processor: main-task-processor
+
+        handler-search-users-by-name:
+            path: /api/v1/users/search
+            method: GET
+            task_processor: main-task-processor
+
+        handler-get-user-rides:
+            path: /api/v1/users/{user_id}/rides
+            method: GET
+            task_processor: main-task-processor
+
+        # === DRIVER ENDPOINTS ===
+        handler-register-driver:
+            path: /api/v1/drivers
+            method: POST
+            task_processor: main-task-processor
+
+        # === RIDE ENDPOINTS ===
+        handler-create-ride:
+            path: /api/v1/rides
+            method: POST
+            task_processor: main-task-processor
+
+        handler-get-active-rides:
+            path: /api/v1/rides/active
+            method: GET
+            task_processor: main-task-processor
+
+        handler-accept-ride:
+            path: /api/v1/rides/{ride_id}/accept
+            method: POST
+            task_processor: main-task-processor
+
+        handler-complete-ride:
+            path: /api/v1/rides/{ride_id}/complete
+            method: POST
+            task_processor: main-task-processor

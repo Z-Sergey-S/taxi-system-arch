@@ -1,0 +1,39 @@
+# Build artifacts
+build*/
+.ccache/
+.vscode/
+.vs/
+*.swp
+*.swo
+*.log
+*.dSYM
+
+# CMake cache
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Tests
+Testing/
+
+# IDE
+.idea/
+.cores/
+cmake-build-*
+
+# OS
+.DS_Store
+
+# Local config overrides
+Makefile.local
+CMakeUserPresets.json
+
+# VSCode (keep specific configs)
+!.vscode/c_cpp_properties.json
+!.vscode/cmake-variants.yaml
+!.vscode/README.md
