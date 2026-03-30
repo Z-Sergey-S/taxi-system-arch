@@ -170,6 +170,12 @@ docker-compose exec taxi-api python -m pytest tests/ -v
 
 ---
 
+## Swagger UI
+
+Swagger UI доступен по адресу: http://localhost:8080/docs
+
+---
+
 ## Документация
 
 - **OpenAPI спецификация** — файл `openapi.yaml` в корне проекта
