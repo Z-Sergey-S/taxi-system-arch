@@ -1,17 +1,17 @@
 components_manager:
     task_processors:
         main-task-processor:
-            worker_threads: $worker-threads
+            worker_threads: 4
 
         fs-task-processor:
-            worker_threads: $worker-fs-threads
+            worker_threads: 2
 
     default_task_processor: main-task-processor
 
     components:
         server:
             listener:
-                port: $server-port
+                port: 8080
                 task_processor: main-task-processor
 
         logging:
@@ -19,7 +19,7 @@ components_manager:
             loggers:
                 default:
                     file_path: '@stderr'
-                    level: $logger-level
+                    level: info
                     overflow_behavior: discard
 
         dynamic-config:
@@ -31,16 +31,8 @@ components_manager:
 
         testsuite-support: {}
 
-        http-client:
-        http-client-core:
-            load-enabled: $is_testing
-            fs-task-processor: fs-task-processor
-
-        dns-client:
-            fs-task-processor: fs-task-processor
-
         tests-control:
-            load-enabled: $is-testing
+            load-enabled: false
             path: /tests/{action}
             method: POST
             task_processor: main-task-processor
