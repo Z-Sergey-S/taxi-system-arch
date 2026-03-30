@@ -49,6 +49,8 @@ std::string SwaggerUiHandler::HandleRequestThrow(
 )";
     
     request.SetResponseStatus(userver::server::http::HttpStatus::kOk);
+    // Устанавливаем Content-Type через GetHttpResponse()
+    request.GetHttpResponse().SetContentType("text/html");
     return html;
 }
 
