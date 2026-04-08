@@ -1,7 +1,8 @@
 #include "register_user.hpp"
 #include <userver/components/component_context.hpp>
+#include <userver/storages/postgres/component.hpp>
 #include <userver/formats/json/serialize.hpp>
-#include "../storage/storage_component.hpp"
+#include "../db/user_repository.hpp"
 #include "../models/user.hpp"
 
 namespace handlers {
@@ -10,7 +11,7 @@ RegisterUserHandler::RegisterUserHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : HttpHandlerBase(config, context),
-      storage_(context.FindComponent<storage::StorageComponent>().GetStorage()) {}
+      pg_cluster_(context.FindComponent<userver::components::Postgres>("postgres-db-1").GetCluster()) {}
 
 std::string RegisterUserHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -20,7 +21,8 @@ std::string RegisterUserHandler::HandleRequestThrow(
         const auto request_body = userver::formats::json::FromString(request.RequestBody());
         auto create_request = models::ParseCreateRequest(request_body);
         
-        auto user = storage_.CreateUser(create_request);
+        db::UserRepository repository(pg_cluster_);
+        auto user = repository.CreateUser(create_request);
         
         models::User::Response response;
         response.id = user.id;
@@ -31,7 +33,7 @@ std::string RegisterUserHandler::HandleRequestThrow(
         response.created_at = user.created_at;
         
         request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
-        return userver::formats::json::ToString(Serialize(response));
+        return userver::formats::json::ToString(models::Serialize(response));
     } catch (const std::exception& e) {
         request.SetResponseStatus(userver::server::http::HttpStatus::kBadRequest);
         userver::formats::json::ValueBuilder error;

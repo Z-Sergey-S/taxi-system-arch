@@ -1,7 +1,9 @@
 #include "get_active_rides.hpp"
 #include <userver/components/component_context.hpp>
+#include <userver/storages/postgres/component.hpp>
 #include <userver/formats/json/serialize.hpp>
-#include "../storage/storage_component.hpp"
+#include "../db/ride_repository.hpp"
+#include "../auth/auth_middleware.hpp"
 #include "../models/ride.hpp"
 
 namespace handlers {
@@ -10,13 +12,23 @@ GetActiveRidesHandler::GetActiveRidesHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : HttpHandlerBase(config, context),
-      storage_(context.FindComponent<storage::StorageComponent>().GetStorage()) {}
+      pg_cluster_(context.FindComponent<userver::components::Postgres>("postgres-db-1").GetCluster()) {}
 
 std::string GetActiveRidesHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
     userver::server::request::RequestContext&) const {
     
-    auto rides = storage_.GetActiveRides();
+    // Аутентификация
+    auto auth_result = auth::AuthMiddleware::Authenticate(request);
+    if (!auth_result) {
+        request.SetResponseStatus(userver::server::http::HttpStatus::kUnauthorized);
+        userver::formats::json::ValueBuilder error;
+        error["error"] = "Unauthorized";
+        return userver::formats::json::ToString(error.ExtractValue());
+    }
+    
+    db::RideRepository repository(pg_cluster_);
+    auto rides = repository.GetActiveRides();
     
     userver::formats::json::ValueBuilder response(userver::formats::json::Type::kArray);
     
@@ -29,7 +41,7 @@ std::string GetActiveRidesHandler::HandleRequestThrow(
         }
         ride_json["start_address"] = ride.start_address;
         ride_json["end_address"] = ride.end_address;
-        ride_json["status"] = RideStatusToString(ride.status);
+        ride_json["status"] = models::RideStatusToString(ride.status);
         ride_json["price"] = ride.price;
         ride_json["created_at"] = ride.created_at;
         response.PushBack(ride_json.ExtractValue());

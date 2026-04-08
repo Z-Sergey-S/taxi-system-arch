@@ -5,8 +5,8 @@
 #include <userver/server/handlers/tests_control.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
 #include <userver/utils/daemon_run.hpp>
+#include <userver/storages/postgres/component.hpp>
 
-#include "storage/storage_component.hpp"
 #include "handlers/register_user.hpp"
 #include "handlers/find_user_by_login.hpp"
 #include "handlers/search_users_by_name.hpp"
@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
             .AppendComponentList(userver::clients::http::ComponentList())
             .Append<userver::clients::dns::Component>()
             .Append<userver::server::handlers::TestsControl>()
-            .Append<storage::StorageComponent>()
+            .Append<userver::components::Postgres>("postgres-db-1")
             .Append<handlers::OpenApiHandler>()
             .Append<handlers::SwaggerUiHandler>()
             .Append<handlers::RegisterUserHandler>()

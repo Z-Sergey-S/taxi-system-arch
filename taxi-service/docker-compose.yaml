@@ -1,4 +1,27 @@
 services:
+  postgres:
+    image: postgres:14
+    container_name: taxi-postgres
+    environment:
+      POSTGRES_DB: taxi_db
+      POSTGRES_USER: taxi_user
+      POSTGRES_PASSWORD: taxi_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./sql/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+      - ./sql/queries.sql:/docker-entrypoint-initdb.d/03-queries.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taxi_user -d taxi_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taxi-network
+    restart: unless-stopped
+
   taxi-api:
     build:
       context: .
@@ -10,13 +33,26 @@ services:
       - WORKER_FS_THREADS=2
       - SERVER_PORT=8080
       - LOGGER_LEVEL=info
+      - DB_CONNECTION=postgresql://taxi_user:taxi_password@postgres:5432/taxi_db
     volumes:
       - ./configs:/app/configs:ro
       - ./openapi.yaml:/app/openapi.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - taxi-network
     restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  taxi-network:
+    driver: bridge

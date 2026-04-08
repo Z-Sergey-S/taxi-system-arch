@@ -26,9 +26,9 @@ add_library(${PROJECT_NAME}_lib STATIC
     src/models/driver.cpp
     src/models/ride.cpp
     
-    # Storage
-    src/storage/taxi_storage.cpp
-    src/storage/storage_component.cpp
+    # # Storage
+    # src/storage/taxi_storage.cpp
+    # src/storage/storage_component.cpp
     
     # Auth
     src/auth/jwt_manager.cpp
@@ -48,6 +48,12 @@ add_library(${PROJECT_NAME}_lib STATIC
     src/handlers/auth_register.cpp
     src/handlers/openapi_handler.cpp
     src/handlers/swagger_ui_handler.cpp
+
+    # DB repositories
+    src/db/user_repository.cpp
+    src/db/driver_repository.cpp
+    src/db/ride_repository.cpp
+
 )
 
 target_link_libraries(${PROJECT_NAME}_lib

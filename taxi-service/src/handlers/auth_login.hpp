@@ -1,7 +1,7 @@
 #pragma once
 #include <userver/components/component_list.hpp>
 #include <userver/server/handlers/http_handler_base.hpp>
-#include "../storage/taxi_storage.hpp"
+#include <userver/storages/postgres/cluster.hpp>
 
 namespace handlers {
 
@@ -17,7 +17,7 @@ public:
         userver::server::request::RequestContext& context) const override;
 
 private:
-    storage::TaxiStorage& storage_;
+    userver::storages::postgres::ClusterPtr pg_cluster_;
 };
 
 } // namespace handlers

@@ -1,7 +1,8 @@
 #include "accept_ride.hpp"
 #include <userver/components/component_context.hpp>
+#include <userver/storages/postgres/component.hpp>
 #include <userver/formats/json/serialize.hpp>
-#include "../storage/storage_component.hpp"
+#include "../db/ride_repository.hpp"
 #include "../auth/auth_middleware.hpp"
 
 namespace handlers {
@@ -10,7 +11,7 @@ AcceptRideHandler::AcceptRideHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : HttpHandlerBase(config, context),
-      storage_(context.FindComponent<storage::StorageComponent>().GetStorage()) {}
+      pg_cluster_(context.FindComponent<userver::components::Postgres>("postgres-db-1").GetCluster()) {}
 
 std::string AcceptRideHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -18,7 +19,7 @@ std::string AcceptRideHandler::HandleRequestThrow(
     
     const auto& ride_id = request.GetPathArg("ride_id");
     
-    // Authenticate driver
+    // Аутентификация (водитель)
     auto auth_result = auth::AuthMiddleware::Authenticate(request);
     if (!auth_result) {
         request.SetResponseStatus(userver::server::http::HttpStatus::kUnauthorized);
@@ -29,7 +30,9 @@ std::string AcceptRideHandler::HandleRequestThrow(
     
     const auto& driver_id = auth_result->first;
     
-    bool success = storage_.AcceptRide(ride_id, driver_id);
+    db::RideRepository repository(pg_cluster_);
+    bool success = repository.AcceptRide(ride_id, driver_id);
+    
     if (!success) {
         request.SetResponseStatus(userver::server::http::HttpStatus::kBadRequest);
         userver::formats::json::ValueBuilder error;

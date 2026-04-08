@@ -1,7 +1,8 @@
 #include "get_user_rides.hpp"
 #include <userver/components/component_context.hpp>
+#include <userver/storages/postgres/component.hpp>
 #include <userver/formats/json/serialize.hpp>
-#include "../storage/storage_component.hpp"
+#include "../db/ride_repository.hpp"
 #include "../models/ride.hpp"
 
 namespace handlers {
@@ -10,7 +11,7 @@ GetUserRidesHandler::GetUserRidesHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : HttpHandlerBase(config, context),
-      storage_(context.FindComponent<storage::StorageComponent>().GetStorage()) {}
+      pg_cluster_(context.FindComponent<userver::components::Postgres>("postgres-db-1").GetCluster()) {}
 
 std::string GetUserRidesHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -18,7 +19,8 @@ std::string GetUserRidesHandler::HandleRequestThrow(
     
     const auto& user_id = request.GetPathArg("user_id");
     
-    auto rides = storage_.GetUserRideHistory(user_id);
+    db::RideRepository repository(pg_cluster_);
+    auto rides = repository.GetUserRideHistory(user_id);
     
     userver::formats::json::ValueBuilder response(userver::formats::json::Type::kArray);
     
@@ -31,7 +33,7 @@ std::string GetUserRidesHandler::HandleRequestThrow(
         }
         ride_json["start_address"] = ride.start_address;
         ride_json["end_address"] = ride.end_address;
-        ride_json["status"] = RideStatusToString(ride.status);
+        ride_json["status"] = models::RideStatusToString(ride.status);
         ride_json["price"] = ride.price;
         ride_json["created_at"] = ride.created_at;
         if (ride.accepted_at) {

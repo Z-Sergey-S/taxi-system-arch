@@ -22,10 +22,78 @@
 
 ### Как это работает внутри
 
-- **Хранилище в памяти** — данные живут только пока работает сервис (без базы данных)
+- **База данных PostgreSQL** — все данные хранятся в реляционной БД
 - **JWT аутентификация** — упрощенная реализация для демонстрации
-- **Потокобезопасность** — `std::shared_mutex` защищает данные при параллельных запросах
-- **Уникальные ID** — генерируются через `userver::utils::generators::GenerateUuid()`
+- **Потокобезопасность** — пул соединений PostgreSQL обеспечивает безопасность
+- **Уникальные ID** — UUID генерируются на стороне БД
+
+
+---
+
+## База данных (PostgreSQL)
+
+### Схема БД
+
+Проект использует PostgreSQL для хранения данных. Схема состоит из трех основных таблиц:
+
+```sql
+-- Пользователи
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    login VARCHAR(50) NOT NULL UNIQUE,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Водители
+CREATE TABLE drivers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    car_model VARCHAR(200) NOT NULL,
+    car_number VARCHAR(20) NOT NULL UNIQUE,
+    status VARCHAR(20) DEFAULT 'free',
+    rating DECIMAL(3,2) DEFAULT 5.0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Поездки
+CREATE TABLE rides (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    driver_id UUID REFERENCES drivers(id) ON DELETE SET NULL,
+    start_address TEXT NOT NULL,
+    end_address TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'created',
+    price DECIMAL(10,2) DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    accepted_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+```
+
+### Индексы для оптимизации
+
+Для ускорения запросов созданы следующие индексы:
+
+| Таблица | Индекс | Назначение |
+|---------|--------|-------------|
+| users | idx_users_login | Быстрый поиск по логину |
+| users | idx_users_name | Поиск по маске имени/фамилии |
+| drivers | idx_drivers_status | Поиск свободных водителей |
+| rides | idx_rides_user_id | JOIN с таблицей users |
+| rides | idx_rides_status | Фильтрация по статусу |
+| rides | idx_rides_created_at | Сортировка по дате |
+
+### Тестовые данные
+
+В БД предварительно загружены тестовые данные:
+- 10 пользователей
+- 10 водителей
+- 10 поездок
 
 ---
 
@@ -33,6 +101,7 @@
 
 - **Docker** и **Docker Compose** (рекомендуемый способ)
 - Или **C++20 компилятор** (Clang 18+), **CMake 3.12+**, **make**
+- **PostgreSQL 14+** (автоматически поднимается в Docker)
 
 ---
 
@@ -205,11 +274,21 @@ Swagger UI позволяет:
 ```
 taxi-service/
 ├── configs/                    # Конфигурация сервиса
-│   └── static_config.yaml      # Основной конфиг
+│   ├── static_config.yaml      # Основной конфиг
+│   └── config_vars.yaml        # Переменные окружения
+├── sql/                        # SQL скрипты для PostgreSQL
+│   ├── schema.sql              # Схема БД (таблицы, индексы)
+│   ├── data.sql                # Тестовые данные
+│   ├── queries.sql             # SQL запросы для API
+│   └── optimization.md         # Анализ оптимизации (EXPLAIN)
 ├── src/
 │   ├── auth/                   # JWT-аутентификация
 │   │   ├── jwt_manager.cpp/hpp
 │   │   └── auth_middleware.cpp/hpp
+│   ├── db/                     # Репозитории для работы с БД
+│   │   ├── user_repository.cpp/hpp
+│   │   ├── driver_repository.cpp/hpp
+│   │   └── ride_repository.cpp/hpp
 │   ├── handlers/               # 11 HTTP хендлеров
 │   │   ├── register_user.cpp/hpp
 │   │   ├── find_user_by_login.cpp/hpp
@@ -228,9 +307,6 @@ taxi-service/
 │   │   ├── user.cpp/hpp
 │   │   ├── driver.cpp/hpp
 │   │   └── ride.cpp/hpp
-│   ├── storage/                # In-memory хранилище
-│   │   ├── taxi_storage.cpp/hpp
-│   │   └── storage_component.cpp/hpp
 │   └── main.cpp                # Точка входа
 ├── tests/                      # Функциональные тесты
 ├── Dockerfile                  # Продакшн-образ
@@ -247,9 +323,9 @@ taxi-service/
 
 - **Язык**: C++20
 - **Фреймворк**: Yandex Userver
-- **Хранилище**: In-memory (std::unordered_map с shared_mutex)
+- **База данных**: PostgreSQL 14
 - **Аутентификация**: JWT (упрощенная реализация)
 - **Документация**: OpenAPI 3.0 + Swagger UI
 - **Контейнеризация**: Docker + Docker Compose
 
-
+---

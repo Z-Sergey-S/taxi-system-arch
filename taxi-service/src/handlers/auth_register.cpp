@@ -1,7 +1,8 @@
 #include "auth_register.hpp"
 #include <userver/components/component_context.hpp>
+#include <userver/storages/postgres/component.hpp>
 #include <userver/formats/json/serialize.hpp>
-#include "../storage/storage_component.hpp"
+#include "../db/user_repository.hpp"
 #include "../models/user.hpp"
 #include "../auth/jwt_manager.hpp"
 
@@ -11,7 +12,7 @@ AuthRegisterHandler::AuthRegisterHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : HttpHandlerBase(config, context),
-      storage_(context.FindComponent<storage::StorageComponent>().GetStorage()) {}
+      pg_cluster_(context.FindComponent<userver::components::Postgres>("postgres-db-1").GetCluster()) {}
 
 std::string AuthRegisterHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -21,7 +22,8 @@ std::string AuthRegisterHandler::HandleRequestThrow(
         const auto request_body = userver::formats::json::FromString(request.RequestBody());
         auto create_request = models::ParseCreateRequest(request_body);
         
-        auto user = storage_.CreateUser(create_request);
+        db::UserRepository repository(pg_cluster_);
+        auto user = repository.CreateUser(create_request);
         
         static auth::JWTManager jwt_manager("your-secret-key");
         std::string token = jwt_manager.GenerateToken(user.id, user.login);

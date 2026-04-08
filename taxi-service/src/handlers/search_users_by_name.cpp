@@ -1,7 +1,8 @@
 #include "search_users_by_name.hpp"
 #include <userver/components/component_context.hpp>
+#include <userver/storages/postgres/component.hpp>
 #include <userver/formats/json/serialize.hpp>
-#include "../storage/storage_component.hpp"
+#include "../db/user_repository.hpp"
 #include "../models/user.hpp"
 
 namespace handlers {
@@ -10,7 +11,7 @@ SearchUsersByNameHandler::SearchUsersByNameHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : HttpHandlerBase(config, context),
-      storage_(context.FindComponent<storage::StorageComponent>().GetStorage()) {}
+      pg_cluster_(context.FindComponent<userver::components::Postgres>("postgres-db-1").GetCluster()) {}
 
 std::string SearchUsersByNameHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -19,8 +20,8 @@ std::string SearchUsersByNameHandler::HandleRequestThrow(
     const auto& first_name = request.GetArg("first_name");
     const auto& last_name = request.GetArg("last_name");
     
-    std::string mask = first_name + " " + last_name;
-    auto users = storage_.FindUsersByNameMask(mask);
+    db::UserRepository repository(pg_cluster_);
+    auto users = repository.FindUsersByNameMask(first_name, last_name);
     
     userver::formats::json::ValueBuilder response(userver::formats::json::Type::kArray);
     
@@ -31,6 +32,7 @@ std::string SearchUsersByNameHandler::HandleRequestThrow(
         user_json["first_name"] = user.first_name;
         user_json["last_name"] = user.last_name;
         user_json["email"] = user.email;
+        user_json["created_at"] = user.created_at;
         response.PushBack(user_json.ExtractValue());
     }
     

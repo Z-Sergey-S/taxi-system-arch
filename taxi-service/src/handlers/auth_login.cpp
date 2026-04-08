@@ -1,7 +1,8 @@
 #include "auth_login.hpp"
 #include <userver/components/component_context.hpp>
+#include <userver/storages/postgres/component.hpp>
 #include <userver/formats/json/serialize.hpp>
-#include "../storage/storage_component.hpp"
+#include "../db/user_repository.hpp"
 #include "../auth/jwt_manager.hpp"
 
 namespace handlers {
@@ -10,7 +11,7 @@ AuthLoginHandler::AuthLoginHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : HttpHandlerBase(config, context),
-      storage_(context.FindComponent<storage::StorageComponent>().GetStorage()) {}
+      pg_cluster_(context.FindComponent<userver::components::Postgres>("postgres-db-1").GetCluster()) {}
 
 std::string AuthLoginHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -21,7 +22,9 @@ std::string AuthLoginHandler::HandleRequestThrow(
         std::string login = request_body["login"].As<std::string>();
         std::string password = request_body["password"].As<std::string>();
         
-        auto user = storage_.AuthenticateUser(login, password);
+        db::UserRepository repository(pg_cluster_);
+        auto user = repository.Authenticate(login, password);
+        
         if (!user.has_value()) {
             request.SetResponseStatus(userver::server::http::HttpStatus::kUnauthorized);
             userver::formats::json::ValueBuilder error;
