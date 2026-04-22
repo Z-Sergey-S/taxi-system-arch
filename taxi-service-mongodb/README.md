@@ -1,4 +1,3 @@
-```markdown
 # Такси API на Yandex Userver с MongoDB
 
 Сервис для заказа такси, написанный на фреймворке [Yandex Userver](https://github.com/userver-framework/userver) с использованием MongoDB в качестве базы данных.
