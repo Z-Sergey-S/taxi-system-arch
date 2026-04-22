@@ -1,0 +1,8 @@
+worker-threads: 4
+worker-fs-threads: 2
+server-port: 8080
+logger-level: debug
+is-testing: false
+
+# PostgreSQL connection string
+pg-connection: postgresql://taxi_user:taxi_password@postgres:5432/taxi_db
