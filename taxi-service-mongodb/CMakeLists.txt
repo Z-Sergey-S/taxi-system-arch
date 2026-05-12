@@ -15,8 +15,12 @@ endif()
 
 userver_setup_environment()
 
+# Find hiredis for Redis
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(HIREDIS REQUIRED hiredis)
+
 # Common sources
-include_directories(src)
+include_directories(src ${HIREDIS_INCLUDE_DIRS})
 
 # Create static library with main code
 add_library(${PROJECT_NAME}_lib STATIC
@@ -28,6 +32,13 @@ add_library(${PROJECT_NAME}_lib STATIC
     # Auth
     src/auth/jwt_manager.cpp
     src/auth/auth_middleware.cpp
+    
+    # Cache
+    src/cache/redis_client.cpp
+    
+    # Rate Limit
+    src/rate_limit/token_bucket.cpp
+    src/rate_limit/rate_limit_middleware.cpp
     
     # Handlers
     src/handlers/register_user.cpp
@@ -48,6 +59,7 @@ add_library(${PROJECT_NAME}_lib STATIC
 target_link_libraries(${PROJECT_NAME}_lib
     PUBLIC userver::core
            userver::mongo
+           ${HIREDIS_LIBRARIES}
 )
 
 # The Service - executable file

@@ -4,6 +4,9 @@
 #include <userver/formats/bson/inline.hpp>
 #include <userver/formats/json/serialize.hpp>
 #include "../auth/auth_middleware.hpp"
+#include "../cache/redis_client.hpp"
+#include "../cache/cache_keys.hpp"
+#include "../rate_limit/rate_limit_middleware.hpp"
 
 namespace handlers {
 
@@ -19,7 +22,16 @@ std::string CompleteRideHandler::HandleRequestThrow(
     
     const auto& ride_id = request.GetPathArg("ride_id");
     
-    // Аутентификация
+    // Rate limiting
+    int remaining = 0, limit = 0, reset = 0;
+    std::string user_key = rate_limit::RateLimitMiddleware::GetUserKey(request);
+    if (!rate_limit::RateLimitMiddleware::CheckLimit(user_key, remaining, limit, reset)) {
+        request.SetResponseStatus(userver::server::http::HttpStatus::kTooManyRequests);
+        userver::formats::json::ValueBuilder error;
+        error["error"] = "Too many requests. Rate limit exceeded.";
+        return userver::formats::json::ToString(error.ExtractValue());
+    }
+    
     auto auth_result = auth::AuthMiddleware::Authenticate(request);
     if (!auth_result) {
         request.SetResponseStatus(userver::server::http::HttpStatus::kUnauthorized);
@@ -34,7 +46,6 @@ std::string CompleteRideHandler::HandleRequestThrow(
     auto rides_collection = pool_->GetCollection("rides");
     auto drivers_collection = pool_->GetCollection("drivers");
     
-    // Проверяем существование поездки и её статус
     auto ride_doc = rides_collection.FindOne(MakeDoc("_id", userver::formats::bson::Oid(ride_id)));
     if (!ride_doc) {
         request.SetResponseStatus(userver::server::http::HttpStatus::kNotFound);
@@ -51,7 +62,6 @@ std::string CompleteRideHandler::HandleRequestThrow(
         return userver::formats::json::ToString(error.ExtractValue());
     }
     
-    // Проверяем, что водитель является исполнителем поездки
     if (ride["driver_id"].template As<userver::formats::bson::Oid>().ToString() != driver_id) {
         request.SetResponseStatus(userver::server::http::HttpStatus::kForbidden);
         userver::formats::json::ValueBuilder error;
@@ -59,18 +69,19 @@ std::string CompleteRideHandler::HandleRequestThrow(
         return userver::formats::json::ToString(error.ExtractValue());
     }
     
-    // Завершаем поездку
     rides_collection.UpdateOne(
         MakeDoc("_id", userver::formats::bson::Oid(ride_id)),
         MakeDoc("$set", MakeDoc("status", "completed",
                                 "completed_at", userver::formats::bson::Oid()))
     );
     
-    // Освобождаем водителя
     drivers_collection.UpdateOne(
         MakeDoc("_id", userver::formats::bson::Oid(driver_id)),
         MakeDoc("$set", MakeDoc("status", "free"))
     );
+    
+    auto& redis = cache::RedisClient::GetInstance();
+    redis.Del(cache::ActiveRidesKey());
     
     userver::formats::json::ValueBuilder response;
     response["message"] = "Ride completed successfully";

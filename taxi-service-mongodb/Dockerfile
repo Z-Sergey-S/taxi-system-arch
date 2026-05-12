@@ -1,6 +1,11 @@
 # STAGE 1: Сборка
 FROM ghcr.io/userver-framework/ubuntu-22.04-userver-pg-dev:latest AS builder
 
+RUN apt-get update && apt-get install -y \
+    libhiredis-dev \
+    pkg-config \
+    libmongocrypt-dev
+
 WORKDIR /app
 
 COPY cmake/ ./cmake/
@@ -13,8 +18,28 @@ RUN mkdir -p build && cd build && \
     cmake --build . --target taxi_api -j$(nproc) && \
     strip taxi_api
 
-# STAGE 2: Рантайм - используем тот же образ, что и для сборки
-FROM ghcr.io/userver-framework/ubuntu-22.04-userver-pg-dev:latest
+# STAGE 2: Рантайм
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    libpq5 \
+    libssl3 \
+    libcurl4 \
+    libev4 \
+    libnghttp2-14 \
+    libyaml-cpp0.7 \
+    libfmt8 \
+    libzstd1 \
+    libre2-9 \
+    libcctz2 \
+    libicu70 \
+    libsnappy1v5 \
+    libhiredis0.14 \
+    libmongocrypt0 \
+    libatomic1 \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -22,7 +47,6 @@ COPY --from=builder /app/build/taxi_api ./taxi_api
 COPY --from=builder /app/configs ./configs
 COPY openapi.yaml ./openapi.yaml
 
-# Создаем непривилегированного пользователя
 RUN useradd -m -u 1000 taxi && chown -R taxi:taxi /app
 USER taxi
 

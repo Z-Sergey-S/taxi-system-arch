@@ -5,6 +5,9 @@
 #include <userver/formats/json/serialize.hpp>
 #include "../auth/auth_middleware.hpp"
 #include "../models/ride.hpp"
+#include "../cache/redis_client.hpp"
+#include "../cache/cache_keys.hpp"
+#include "../rate_limit/rate_limit_middleware.hpp"
 #include <cmath>
 
 namespace handlers {
@@ -26,7 +29,16 @@ std::string CreateRideHandler::HandleRequestThrow(
     userver::server::request::RequestContext&) const {
     
     try {
-        // Аутентификация
+        // Rate limiting
+        int remaining = 0, limit = 0, reset = 0;
+        std::string user_key = rate_limit::RateLimitMiddleware::GetUserKey(request);
+        if (!rate_limit::RateLimitMiddleware::CheckLimit(user_key, remaining, limit, reset)) {
+            request.SetResponseStatus(userver::server::http::HttpStatus::kTooManyRequests);
+            userver::formats::json::ValueBuilder error;
+            error["error"] = "Too many requests. Rate limit exceeded.";
+            return userver::formats::json::ToString(error.ExtractValue());
+        }
+        
         auto auth_result = auth::AuthMiddleware::Authenticate(request);
         if (!auth_result) {
             request.SetResponseStatus(userver::server::http::HttpStatus::kUnauthorized);
@@ -43,7 +55,6 @@ std::string CreateRideHandler::HandleRequestThrow(
         using userver::formats::bson::MakeDoc;
         auto rides_collection = pool_->GetCollection("rides");
         
-        // Создание поездки
         rides_collection.InsertOne(
             MakeDoc("user_id", userver::formats::bson::Oid(create_request.user_id),
                     "start_address", create_request.start_address,
@@ -53,7 +64,6 @@ std::string CreateRideHandler::HandleRequestThrow(
                     "created_at", userver::formats::bson::Oid())
         );
         
-        // Находим только что созданную поездку
         auto new_ride = rides_collection.FindOne(
             MakeDoc("user_id", userver::formats::bson::Oid(create_request.user_id),
                     "start_address", create_request.start_address,
@@ -75,6 +85,9 @@ std::string CreateRideHandler::HandleRequestThrow(
         response.created_at = std::to_string(
             std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())
         );
+        
+        auto& redis = cache::RedisClient::GetInstance();
+        redis.Del(cache::ActiveRidesKey());
         
         request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
         return userver::formats::json::ToString(models::Serialize(response));

@@ -61,7 +61,7 @@ std::string JWTManager::DecodeBase64(const std::string& input) {
     std::string decoded;
     int i = 0;
     unsigned char char_array_4[4], char_array_3[3];
-    int in_len = input.size();
+    // Removed unused variable 'in_len'
     
     for (char c : input) {
         if (c == '=') break;
@@ -94,7 +94,6 @@ std::string JWTManager::DecodeBase64(const std::string& input) {
 }
 
 std::string JWTManager::GenerateToken(const std::string& user_id, const std::string& login) {
-    // Create simple JWT-like token (not cryptographically secure, just for demo)
     auto now = std::chrono::system_clock::now();
     auto exp = now + std::chrono::hours(24);
     
@@ -129,7 +128,6 @@ std::optional<std::pair<std::string, std::string>> JWTManager::ValidateToken(con
     
     std::string payload = DecodeBase64(encoded_payload);
     
-    // Parse JSON-like payload
     size_t user_id_pos = payload.find("\"user_id\":\"");
     if (user_id_pos == std::string::npos) return std::nullopt;
     user_id_pos += 11;
@@ -144,7 +142,6 @@ std::optional<std::pair<std::string, std::string>> JWTManager::ValidateToken(con
     if (login_end == std::string::npos) return std::nullopt;
     std::string login = payload.substr(login_pos, login_end - login_pos);
     
-    // Check expiration
     size_t exp_pos = payload.find("\"exp\":");
     if (exp_pos != std::string::npos) {
         exp_pos += 6;
@@ -159,7 +156,6 @@ std::optional<std::pair<std::string, std::string>> JWTManager::ValidateToken(con
         }
     }
     
-    // Verify signature
     std::string expected_signature = EncodeBase64(secret_ + user_id + login);
     if (signature != expected_signature) {
         return std::nullopt;

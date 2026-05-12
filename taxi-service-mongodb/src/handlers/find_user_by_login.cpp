@@ -4,6 +4,8 @@
 #include <userver/formats/bson/inline.hpp>
 #include <userver/formats/json/serialize.hpp>
 #include "../models/user.hpp"
+#include "../cache/redis_client.hpp"
+#include "../cache/cache_keys.hpp"
 
 namespace handlers {
 
@@ -18,6 +20,15 @@ std::string FindUserByLoginHandler::HandleRequestThrow(
     userver::server::request::RequestContext&) const {
     
     const auto& login = request.GetPathArg("login");
+    std::string cache_key = cache::UserLoginKey(login);
+    
+    auto& redis = cache::RedisClient::GetInstance();
+    auto cached_data = redis.Get(cache_key);
+    
+    if (cached_data.has_value()) {
+        request.SetResponseStatus(userver::server::http::HttpStatus::kOk);
+        return cached_data.value();
+    }
     
     using userver::formats::bson::MakeDoc;
     auto users_collection = pool_->GetCollection("users");
@@ -40,11 +51,15 @@ std::string FindUserByLoginHandler::HandleRequestThrow(
     response.last_name = doc["last_name"].template As<std::string>();
     response.email = doc["email"].template As<std::string>();
     response.created_at = std::to_string(
-        std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())
+        doc["created_at"].template As<userver::formats::bson::Oid>().GetTimePoint().time_since_epoch().count()
     );
     
+    std::string json_response = userver::formats::json::ToString(models::Serialize(response));
+    
+    redis.Set(cache_key, json_response, 300);
+    
     request.SetResponseStatus(userver::server::http::HttpStatus::kOk);
-    return userver::formats::json::ToString(models::Serialize(response));
+    return json_response;
 }
 
 } // namespace handlers

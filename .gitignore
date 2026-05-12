@@ -2,3 +2,23 @@ analysis.md
 Tasks
 userver
 userver-create-server.sh
+
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test outputs
+test-output/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
