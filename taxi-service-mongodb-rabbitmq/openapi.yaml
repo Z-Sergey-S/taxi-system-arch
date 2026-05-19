@@ -1,0 +1,580 @@
+openapi: 3.0.0
+info:
+  title: Taxi Service API
+  version: 1.0.0
+  description: REST API сервис для заказа такси
+  contact:
+    name: Support
+    email: support@taxi-api.com
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Development server
+  - url: https://api.taxi-service.com/v1
+    description: Production server
+
+tags:
+  - name: Auth
+    description: Аутентификация и регистрация
+  - name: Users
+    description: Операции с пользователями
+  - name: Drivers
+    description: Операции с водителями
+  - name: Rides
+    description: Операции с поездками
+
+paths:
+  # Auth endpoints
+  /auth/register:
+    post:
+      summary: Регистрация нового пользователя
+      description: Создает нового пользователя и возвращает JWT токен
+      operationId: registerUser
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - login
+                - password
+                - first_name
+                - last_name
+                - email
+              properties:
+                login:
+                  type: string
+                  example: john_doe
+                password:
+                  type: string
+                  format: password
+                  example: secret123
+                first_name:
+                  type: string
+                  example: John
+                last_name:
+                  type: string
+                  example: Doe
+                email:
+                  type: string
+                  format: email
+                  example: john@example.com
+      responses:
+        '201':
+          description: Пользователь успешно зарегистрирован
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT токен для аутентификации
+                  user_id:
+                    type: string
+                  login:
+                    type: string
+                  first_name:
+                    type: string
+                  last_name:
+                    type: string
+                  email:
+                    type: string
+        '400':
+          description: Невалидные данные или пользователь уже существует
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      summary: Аутентификация пользователя
+      description: Вход в систему, возвращает JWT токен
+      operationId: loginUser
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - login
+                - password
+              properties:
+                login:
+                  type: string
+                  example: john_doe
+                password:
+                  type: string
+                  format: password
+                  example: secret123
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user_id:
+                    type: string
+                  login:
+                    type: string
+        '401':
+          description: Неверные учетные данные
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # User endpoints
+  /users:
+    post:
+      summary: Создание нового пользователя
+      description: Регистрация нового пользователя в системе
+      operationId: createUser
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{login}:
+    get:
+      summary: Поиск пользователя по логину
+      description: Возвращает информацию о пользователе
+      operationId: findUserByLogin
+      tags:
+        - Users
+      parameters:
+        - name: login
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Логин пользователя
+          example: john_doe
+      responses:
+        '200':
+          description: Пользователь найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/search:
+    get:
+      summary: Поиск пользователей по маске имени и фамилии
+      description: Возвращает список пользователей, чье имя и фамилия содержат указанную маску
+      operationId: searchUsersByName
+      tags:
+        - Users
+      parameters:
+        - name: first_name
+          in: query
+          schema:
+            type: string
+          description: Маска для имени
+          example: Jo
+        - name: last_name
+          in: query
+          schema:
+            type: string
+          description: Маска для фамилии
+          example: Do
+      responses:
+        '200':
+          description: Список пользователей
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserResponse'
+
+  /users/{user_id}/rides:
+    get:
+      summary: Получение истории поездок пользователя
+      description: Возвращает список всех поездок пользователя
+      operationId: getUserRides
+      tags:
+        - Rides
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID пользователя
+      responses:
+        '200':
+          description: История поездок
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RideResponse'
+
+  # Driver endpoints
+  /drivers:
+    post:
+      summary: Регистрация водителя
+      description: Добавляет нового водителя в систему
+      operationId: registerDriver
+      tags:
+        - Drivers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverCreate'
+      responses:
+        '201':
+          description: Водитель зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverResponse'
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Ride endpoints
+  /rides:
+    post:
+      summary: Создание заказа поездки
+      description: Создает новый заказ на поездку
+      operationId: createRide
+      tags:
+        - Rides
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RideCreate'
+      responses:
+        '201':
+          description: Заказ создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RideResponse'
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Не авторизован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /rides/active:
+    get:
+      summary: Получение активных заказов
+      description: Возвращает список активных (не завершенных) заказов
+      operationId: getActiveRides
+      tags:
+        - Rides
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список активных заказов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RideResponse'
+        '401':
+          description: Не авторизован
+
+  /rides/{ride_id}/accept:
+    post:
+      summary: Принятие заказа водителем
+      description: Водитель принимает заказ на выполнение
+      operationId: acceptRide
+      tags:
+        - Rides
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ride_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID заказа
+      responses:
+        '200':
+          description: Заказ принят
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  ride_id:
+                    type: string
+        '400':
+          description: Нельзя принять заказ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Не авторизован
+
+  /rides/{ride_id}/complete:
+    post:
+      summary: Завершение поездки
+      description: Отмечает поездку как завершенную
+      operationId: completeRide
+      tags:
+        - Rides
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ride_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID заказа
+      responses:
+        '200':
+          description: Поездка завершена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  ride_id:
+                    type: string
+        '400':
+          description: Нельзя завершить поездку
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Не авторизован
+
+components:
+  schemas:
+    UserCreate:
+      type: object
+      required:
+        - login
+        - password
+        - first_name
+        - last_name
+        - email
+      properties:
+        login:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: john_doe
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: secret123
+        first_name:
+          type: string
+          example: John
+        last_name:
+          type: string
+          example: Doe
+        email:
+          type: string
+          format: email
+          example: john@example.com
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 3a572ffbe81345ec97cbc67cccb6a054
+        login:
+          type: string
+          example: john_doe
+        first_name:
+          type: string
+          example: John
+        last_name:
+          type: string
+          example: Doe
+        email:
+          type: string
+          example: john@example.com
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-03-29T15:24:05Z
+
+    DriverCreate:
+      type: object
+      required:
+        - first_name
+        - last_name
+        - car_model
+        - car_number
+      properties:
+        first_name:
+          type: string
+          example: Ivan
+        last_name:
+          type: string
+          example: Petrov
+        car_model:
+          type: string
+          example: Toyota Camry
+        car_number:
+          type: string
+          example: A123BC
+
+    DriverResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: b03b19524a8f4bf0b598648ec351f03a
+        first_name:
+          type: string
+          example: Ivan
+        last_name:
+          type: string
+          example: Petrov
+        car_model:
+          type: string
+          example: Toyota Camry
+        car_number:
+          type: string
+          example: A123BC
+        status:
+          type: string
+          enum: [free, busy, offline]
+          example: free
+        rating:
+          type: number
+          format: double
+          example: 5.0
+        created_at:
+          type: string
+          format: date-time
+
+    RideCreate:
+      type: object
+      required:
+        - user_id
+        - start_address
+        - end_address
+      properties:
+        user_id:
+          type: string
+          description: ID пользователя, заказывающего поездку
+          example: 3a572ffbe81345ec97cbc67cccb6a054
+        start_address:
+          type: string
+          example: ул. Ленина, 10
+        end_address:
+          type: string
+          example: ул. Пушкина, 20
+
+    RideResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 8365bafefe034e23906471e89e3b5343
+        user_id:
+          type: string
+        driver_id:
+          type: string
+          nullable: true
+        start_address:
+          type: string
+        end_address:
+          type: string
+        status:
+          type: string
+          enum: [created, accepted, in_progress, completed, cancelled]
+          example: created
+        price:
+          type: number
+          format: double
+          example: 510.0
+        created_at:
+          type: string
+          format: date-time
+        accepted_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Сообщение об ошибке
+          example: User not found
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT токен, полученный при аутентификации

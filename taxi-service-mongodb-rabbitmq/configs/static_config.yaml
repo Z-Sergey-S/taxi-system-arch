@@ -1,0 +1,145 @@
+components_manager:
+    task_processors:
+        main-task-processor:
+            worker_threads: 4
+
+        fs-task-processor:
+            worker_threads: 2
+
+    default_task_processor: main-task-processor
+
+    components:
+        server:
+            listener:
+                port: 8080
+                task_processor: main-task-processor
+
+        logging:
+            fs-task-processor: fs-task-processor
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: debug
+                    overflow_behavior: discard
+
+        dynamic-config:
+            defaults:
+                HTTP_CLIENT_CONNECTION_POOL_SIZE: 1000
+
+        testsuite-support: {}
+
+        dns-client:
+            fs-task-processor: fs-task-processor
+
+        tests-control:
+            load-enabled: true
+            path: /tests/{action}
+            method: POST
+            task_processor: main-task-processor
+
+        # === MONGODB COMPONENT ===
+        mongo-taxi:
+            dbconnection: mongodb://admin:secret@mongodb:27017/taxi_db?authSource=admin
+            appname: taxi-service
+            conn_timeout: 2s
+            so_timeout: 10s
+            initial_size: 5
+            max_size: 20
+
+        # === RABBITMQ PRODUCER ===
+        rabbit-producer:
+            uri: amqp://taxi:taxi123@rabbitmq:5672
+            exchange: taxi.events
+            exchange_type: topic
+            task_processor: main-task-processor
+
+        # === RABBITMQ CONSUMER ===
+        rabbit-consumer:
+            uri: amqp://taxi:taxi123@rabbitmq:5672
+            queue: event_logger
+            routing_keys: ["#"]
+            consumer: event-logger
+            task_processor: main-task-processor
+
+        # === EVENT LOGGER CONSUMER COMPONENT ===
+        event-logger:
+            load-enabled: true
+
+        # === SWAGGER HANDLERS ===
+        handler-openapi:
+            path: /docs/openapi.json
+            method: GET
+            task_processor: main-task-processor
+
+        handler-swagger-ui:
+            path: /docs
+            method: GET
+            task_processor: main-task-processor
+            url_trailing_slash: strict-match
+
+        # === HEALTH CHECK ===
+        handler-ping:
+            path: /ping
+            method: GET
+            task_processor: main-task-processor
+            throttling_enabled: false
+            url_trailing_slash: strict-match
+
+        # === AUTH ENDPOINTS ===
+        handler-auth-login:
+            path: /api/v1/auth/login
+            method: POST
+            task_processor: main-task-processor
+
+        handler-auth-register:
+            path: /api/v1/auth/register
+            method: POST
+            task_processor: main-task-processor
+
+        # === USER ENDPOINTS ===
+        handler-register-user:
+            path: /api/v1/users
+            method: POST
+            task_processor: main-task-processor
+
+        handler-find-user-by-login:
+            path: /api/v1/users/{login}
+            method: GET
+            task_processor: main-task-processor
+
+        handler-search-users-by-name:
+            path: /api/v1/users/search
+            method: GET
+            task_processor: main-task-processor
+
+        handler-get-user-rides:
+            path: /api/v1/users/{user_id}/rides
+            method: GET
+            task_processor: main-task-processor
+
+        # === DRIVER ENDPOINTS ===
+        handler-register-driver:
+            path: /api/v1/drivers
+            method: POST
+            task_processor: main-task-processor
+
+        # === RIDE ENDPOINTS ===
+        handler-create-ride:
+            path: /api/v1/rides
+            method: POST
+            task_processor: main-task-processor
+
+        handler-get-active-rides:
+            path: /api/v1/rides/active
+            method: GET
+            task_processor: main-task-processor
+
+        handler-accept-ride:
+            path: /api/v1/rides/{ride_id}/accept
+            method: POST
+            task_processor: main-task-processor
+
+        handler-complete-ride:
+            path: /api/v1/rides/{ride_id}/complete
+            method: POST
+            task_processor: main-task-processor
