@@ -4,6 +4,8 @@
 #include <userver/formats/bson/inline.hpp>
 #include <userver/formats/json/serialize.hpp>
 #include "../models/user.hpp"
+#include "../events/event_publisher.hpp"
+#include "../events/event_types.hpp"
 
 namespace handlers {
 
@@ -16,15 +18,14 @@ RegisterUserHandler::RegisterUserHandler(
 std::string RegisterUserHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
     userver::server::request::RequestContext&) const {
-    
+
     try {
         const auto request_body = userver::formats::json::FromString(request.RequestBody());
         auto create_request = models::ParseCreateRequest(request_body);
-        
+
         using userver::formats::bson::MakeDoc;
         auto users_collection = pool_->GetCollection("users");
-        
-        // Проверка на существование пользователя
+
         auto existing_user = users_collection.FindOne(MakeDoc("login", create_request.login));
         if (existing_user) {
             request.SetResponseStatus(userver::server::http::HttpStatus::kBadRequest);
@@ -32,10 +33,9 @@ std::string RegisterUserHandler::HandleRequestThrow(
             error["error"] = "User with this login already exists";
             return userver::formats::json::ToString(error.ExtractValue());
         }
-        
+
         std::string password_hash = "hash_" + create_request.password;
-        
-        // Вставка пользователя
+
         users_collection.InsertOne(
             MakeDoc("login", create_request.login,
                     "first_name", create_request.first_name,
@@ -44,14 +44,25 @@ std::string RegisterUserHandler::HandleRequestThrow(
                     "password_hash", password_hash,
                     "created_at", userver::formats::bson::Oid())
         );
-        
-        // Находим только что созданного пользователя по логину
+
         auto new_user = users_collection.FindOne(MakeDoc("login", create_request.login));
         std::string user_id;
         if (new_user) {
             user_id = new_user->operator[]("_id").template As<userver::formats::bson::Oid>().ToString();
         }
-        
+
+        // Публикация события UserCreated
+        try {
+            events::UserCreatedEvent event(user_id, create_request.login, 
+                                           create_request.first_name, create_request.last_name,
+                                           create_request.email);
+            auto& publisher = events::EventPublisher::GetInstance();
+            publisher.Publish(event);
+            LOG_INFO() << "UserCreated event published for user: " << create_request.login;
+        } catch (const std::exception& e) {
+            LOG_WARNING() << "Failed to publish UserCreated event: " << e.what();
+        }
+
         models::User::Response response;
         response.id = user_id;
         response.login = create_request.login;
@@ -61,7 +72,7 @@ std::string RegisterUserHandler::HandleRequestThrow(
         response.created_at = std::to_string(
             std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())
         );
-        
+
         request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
         return userver::formats::json::ToString(models::Serialize(response));
     } catch (const std::exception& e) {

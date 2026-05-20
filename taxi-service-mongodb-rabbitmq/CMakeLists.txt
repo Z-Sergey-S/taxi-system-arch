@@ -28,18 +28,23 @@ add_library(${PROJECT_NAME}_lib STATIC
     src/models/user.cpp
     src/models/driver.cpp
     src/models/ride.cpp
-    
+
     # Auth
     src/auth/jwt_manager.cpp
     src/auth/auth_middleware.cpp
-    
+
     # Cache
     src/cache/redis_client.cpp
-    
+
     # Rate Limit
     src/rate_limit/token_bucket.cpp
     src/rate_limit/rate_limit_middleware.cpp
-    
+
+    # Events
+    src/events/event_types.cpp
+    src/events/event_publisher.cpp
+    src/events/event_publisher_component.cpp
+
     # Handlers
     src/handlers/register_user.cpp
     src/handlers/find_user_by_login.cpp

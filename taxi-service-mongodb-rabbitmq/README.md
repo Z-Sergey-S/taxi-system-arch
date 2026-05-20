@@ -8,6 +8,7 @@
 
 - ДЗ N4: Проектирование и работа с MongoDB
 - ДЗ N5: Оптимизация производительности (кеширование + rate limiting)
+- ДЗ N6: Event-Driven архитектура (события + RabbitMQ)
 
 **Студент:** Жеребцов Сергей  
 **Группа:** М8О-103СВ-25  
@@ -35,7 +36,55 @@
 
 ---
 
-## Оптимизация производительности
+## Event-Driven архитектура (ДЗ №6)
+
+### События в системе
+
+При выполнении операций публикуются следующие события:
+
+| Событие | Когда происходит | Routing Key |
+|---------|-----------------|-------------|
+| UserCreated | Регистрация пользователя | user.created |
+| RideCreated | Создание заказа | ride.created |
+| RideAccepted | Принятие заказа водителем | ride.accepted |
+| RideCompleted | Завершение поездки | ride.completed |
+
+### Формат события
+
+```json
+{
+  "event_id": "550e8400-e29b-41d4-a716-446655440000",
+  "event_type": "UserCreated",
+  "timestamp": 1703000000,
+  "data": {
+    "user_id": "123",
+    "login": "john_doe",
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john@example.com"
+  }
+}
+```
+
+### Просмотр событий в логах
+
+```bash
+docker compose logs taxi-api | grep "Publishing event"
+```
+
+### Пример вывода
+
+```
+Publishing event: user.created, event_id: 72e33b27-42fe-4cd8-ab12-cbb64c7ced2a, message: {"event_id":"...","event_type":"UserCreated",...}
+```
+
+### RabbitMQ Management UI
+
+Откройте в браузере: http://localhost:15672 (логин: guest, пароль: guest)
+
+---
+
+## Оптимизация производительности (ДЗ №5)
 
 ### 1. Кеширование с Redis
 
@@ -50,38 +99,20 @@
 
 Инвалидация кеша происходит при создании, принятии или завершении заказа - в этих случаях удаляется ключ rides:active.
 
-Результаты замеров производительности:
-
-| Сценарий | До оптимизации | После оптимизации |
-|----------|----------------|--------------------|
-| Поиск пользователей | 10-30 мс | 2-5 мс |
-| Получение активных заказов | 20-50 мс | 3-8 мс |
-
-### 2. Rate Limiting
-
-Для защиты API от избыточных запросов реализован алгоритм Token Bucket.
+### 2. Rate Limiting (Token Bucket)
 
 Ограничения:
 - GET /api/v1/users/search: 10 запросов в минуту
 - GET /api/v1/rides/active: 10 запросов в минуту
 
-При превышении лимита возвращается HTTP статус 429 Too Many Requests с JSON телом:
-
-{
-    "error": "Too many requests. Rate limit exceeded.",
-    "limit": 10,
-    "remaining": 0,
-    "reset_seconds": 57
-}
-
-Тест отправки 15 запросов подряд показал, что первые 10 запросов получают статус 200, остальные 5 - статус 429.
+При превышении лимита возвращается HTTP 429 Too Many Requests.
 
 ---
 
-## Документная модель MongoDB
+## Документная модель MongoDB (ДЗ №4)
 
 ### Коллекция users
-```bash
+```json
 {
   "_id": ObjectId("..."),
   "login": "john_doe",
@@ -94,7 +125,7 @@
 ```
 
 ### Коллекция drivers
-```bash
+```json
 {
   "_id": ObjectId("..."),
   "login": "driver_ivan",
@@ -108,8 +139,9 @@
   "created_at": ISODate("...")
 }
 ```
+
 ### Коллекция rides
-```bash
+```json
 {
   "_id": ObjectId("..."),
   "user_id": ObjectId("..."),
@@ -123,14 +155,14 @@
   "completed_at": ISODate("...")
 }
 ```
+
 ### Выбор между Embedded и References
 
 | Связь | Тип | Решение | Обоснование |
 |-------|-----|---------|-------------|
-| Пользователь -> Активная поездка | 1:0..1 | Embedded | У пользователя может быть только одна активная поездка, частый доступ |
+| Пользователь -> Активная поездка | 1:0..1 | Embedded | У пользователя может быть только одна активная поездка |
 | Пользователь -> История поездок | 1:N | References | Поездок может быть неограниченное количество |
 | Водитель -> Текущая поездка | 1:0..1 | Embedded | Водитель может выполнять только одну поездку одновременно |
-| Поездка -> Временные метки | 1:1 | Embedded | Логически связанные данные |
 
 ---
 
@@ -150,38 +182,38 @@
 ---
 
 ## Запуск через Docker
-```bash
-#Клонирование репозитория:
 
+```bash
+# Клонирование репозитория
 git clone https://github.com/Z-Sergey-S/taxi-system-arch.git
 cd taxi-system-arch/taxi-service-mongodb
 
-# Сборка и запуск:
-
+# Сборка и запуск
 docker compose build --no-cache
 docker compose up -d
 
-# Проверка работоспособности:
-
+# Проверка работоспособности
 curl http://localhost:8080/ping
 
-# Проверка Redis:
-
+# Проверка Redis
 docker exec -it taxi-redis redis-cli PING
 
-# Просмотр логов:
+# Проверка RabbitMQ
+docker exec -it taxi-rabbitmq rabbitmq-diagnostics ping
 
+# Просмотр логов
 docker compose logs -f taxi-api
 
-# Остановка сервиса:
-
+# Остановка сервиса
 docker compose down
 ```
+
 ---
 
 ## Тестирование API
 
 ### Запуск тестовых скриптов
+
 ```bash
 chmod +x test-api.sh
 ./test-api.sh
@@ -192,7 +224,7 @@ chmod +x demo-rate-limiting.sh
 
 ### Примеры запросов
 
-Создание пользователя:
+**Создание пользователя (публикует событие UserCreated):**
 ```bash
 curl -X POST http://localhost:8080/api/v1/users \
   -H "Content-Type: application/json" \
@@ -204,7 +236,8 @@ curl -X POST http://localhost:8080/api/v1/users \
     "email": "john@example.com"
   }'
 ```
-Аутентификация:
+
+**Аутентификация:**
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
@@ -213,33 +246,8 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
     "password": "secret123"
   }'
 ```
-Поиск пользователя (демонстрация кеша):
-```bash
-time curl "http://localhost:8080/api/v1/users/search?first_name=John&last_name=Doe"
-time curl "http://localhost:8080/api/v1/users/search?first_name=John&last_name=Doe"
-```
-Тест rate limiting:
-```bash
-for i in {1..12}; do
-  curl -s -w "Request $i: HTTP %{http_code}\n" \
-    "http://localhost:8080/api/v1/users/search?first_name=John" -o /dev/null
-  sleep 0.2
-done
-```
-Регистрация водителя:
-```bash
-curl -X POST http://localhost:8080/api/v1/drivers \
-  -H "Content-Type: application/json" \
-  -d '{
-    "login": "driver_ivan",
-    "first_name": "Ivan",
-    "last_name": "Petrov",
-    "car_model": "Toyota Camry",
-    "car_number": "A123BC",
-    "password": "driverpass"
-  }'
-```
-Создание заказа (требуется JWT токен):
+
+**Создание заказа (публикует событие RideCreated):**
 ```bash
 TOKEN="your-jwt-token"
 curl -X POST http://localhost:8080/api/v1/rides \
@@ -252,71 +260,50 @@ curl -X POST http://localhost:8080/api/v1/rides \
   }'
 ```
 
----
-
-## Агрегационные запросы
-
-### Статистика по пользователю
+**Принятие заказа (публикует событие RideAccepted):**
 ```bash
-db.rides.aggregate([
-    { $match: { status: "completed" } },
-    { $group: {
-        _id: "$user_id",
-        total_rides: { $sum: 1 },
-        total_spent: { $sum: "$price" }
-    }},
-    { $sort: { total_spent: -1 } }
-])
+curl -X POST http://localhost:8080/api/v1/rides/{ride_id}/accept \
+  -H "Authorization: Bearer $DRIVER_TOKEN"
 ```
-### Топ водителей по заработку
+
+**Завершение поездки (публикует событие RideCompleted):**
 ```bash
-db.rides.aggregate([
-    { $match: { driver_id: { $exists: true }, status: "completed" } },
-    { $group: {
-        _id: "$driver_id",
-        total_earnings: { $sum: "$price" },
-        total_rides: { $sum: 1 }
-    }},
-    { $sort: { total_earnings: -1 } },
-    { $limit: 10 }
-])
+curl -X POST http://localhost:8080/api/v1/rides/{ride_id}/complete \
+  -H "Authorization: Bearer $DRIVER_TOKEN"
 ```
-### Поиск ближайших водителей
+
+**Просмотр событий в логах:**
 ```bash
-db.drivers.aggregate([
-    { $geoNear: {
-        near: { type: "Point", coordinates: [37.6176, 55.7558] },
-        distanceField: "distance_meters",
-        maxDistance: 5000,
-        spherical: true
-    }},
-    { $match: { status: "free" } },
-    { $limit: 10 }
-])
+docker compose logs taxi-api | grep "Publishing event"
 ```
 
 ---
 
 ## Структура проекта
+
 ```
 taxi-service-mongodb/
 ├── src/
 │   ├── auth/                 # JWT-аутентификация
 │   ├── cache/                # Redis клиент
-│   ├── rate_limit/           # Token Bucket
+│   ├── events/               # Event Publisher (HW6)
+│   ├── rate_limit/           # Token Bucket (HW5)
 │   ├── handlers/             # HTTP хендлеры
 │   ├── models/               # DTO: User, Driver, Ride
 │   └── main.cpp              # Точка входа
 ├── configs/
-│   └── static_config.yaml    # Конфигурация сервера
+│   ├── static_config.yaml    # Конфигурация сервера
+│   └── config_vars.yaml      # Переменные окружения
 ├── scripts/
 │   ├── mongo-init.js         # Инициализация БД
 │   ├── queries.js            # CRUD запросы
 │   ├── validation.js         # Валидация схем
 │   └── aggregations.js       # Агрегации
 ├── docs/
-│   └── schema_design.md      # Документация по модели
-├── performance_design.md     # Документация по оптимизации
+│   └── schema_design.md      # Документация по модели (HW4)
+├── performance_design.md     # Документация по оптимизации (HW5)
+├── event_driven_design.md    # Документация по Event-Driven (HW6)
+├── event_catalog.md          # Каталог событий (HW6)
 ├── Dockerfile
 ├── docker-compose.yaml
 ├── openapi.yaml
@@ -329,39 +316,57 @@ taxi-service-mongodb/
 
 ## Технологии
 
-- Язык: C++20
-- Фреймворк: Yandex Userver
-- База данных: MongoDB 6.0
-- Кеширование: Redis 7
-- Rate Limiting: Token Bucket
-- Аутентификация: JWT
-- Документация: OpenAPI 3.0 + Swagger UI
-- Контейнеризация: Docker + Docker Compose
+- **Язык:** C++20
+- **Фреймворк:** Yandex Userver
+- **База данных:** MongoDB 6.0
+- **Кеширование:** Redis 7
+- **Брокер сообщений:** RabbitMQ 3.12
+- **Rate Limiting:** Token Bucket
+- **Аутентификация:** JWT
+- **Документация:** OpenAPI 3.0 + Swagger UI
+- **Контейнеризация:** Docker + Docker Compose
 
 ---
 
 ## Выполнение скриптов
 
-Инициализация БД:
+**Инициализация MongoDB:**
 ```bash
 docker exec -i taxi-mongodb mongosh -u admin -p secret --authenticationDatabase admin taxi_db < scripts/mongo-init.js
 ```
-CRUD запросы:
+
+**CRUD запросы:**
 ```bash
 docker exec -i taxi-mongodb mongosh -u admin -p secret --authenticationDatabase admin taxi_db < scripts/queries.js
 ```
-Валидация:
+
+**Валидация схем:**
 ```bash
 docker exec -i taxi-mongodb mongosh -u admin -p secret --authenticationDatabase admin taxi_db < scripts/validation.js
 ```
-Агрегации:
+
+**Агрегации:**
 ```bash
 docker exec -i taxi-mongodb mongosh -u admin -p secret --authenticationDatabase admin taxi_db < scripts/aggregations.js
 ```
-Проверка Redis кеша:
+
+**Проверка Redis кеша:**
 ```bash
 docker exec -it taxi-redis redis-cli KEYS "*"
 ```
+
+**Проверка RabbitMQ:**
+```bash
+# Проверка состояния
+docker exec -it taxi-rabbitmq rabbitmq-diagnostics ping
+
+# Просмотр очередей
+docker exec -it taxi-rabbitmq rabbitmqctl list_queues
+
+# Открыть Management UI
+# http://localhost:15672 (guest/guest)
+```
+
 ### Swagger UI
 
-Откройте в браузере: http://localhost:8080/docs
+Откройте в браузере: **http://localhost:8080/docs**

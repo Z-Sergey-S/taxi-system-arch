@@ -8,7 +8,10 @@
 #include "../cache/redis_client.hpp"
 #include "../cache/cache_keys.hpp"
 #include "../rate_limit/rate_limit_middleware.hpp"
+#include "../events/event_publisher.hpp"
+#include "../events/event_types.hpp"
 #include <cmath>
+#include <userver/logging/log.hpp>
 
 namespace handlers {
 
@@ -27,7 +30,7 @@ double CalculatePrice(const std::string& start_address, const std::string& end_a
 std::string CreateRideHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
     userver::server::request::RequestContext&) const {
-    
+
     try {
         // Rate limiting
         int remaining = 0, limit = 0, reset = 0;
@@ -38,7 +41,7 @@ std::string CreateRideHandler::HandleRequestThrow(
             error["error"] = "Too many requests. Rate limit exceeded.";
             return userver::formats::json::ToString(error.ExtractValue());
         }
-        
+
         auto auth_result = auth::AuthMiddleware::Authenticate(request);
         if (!auth_result) {
             request.SetResponseStatus(userver::server::http::HttpStatus::kUnauthorized);
@@ -46,16 +49,16 @@ std::string CreateRideHandler::HandleRequestThrow(
             error["error"] = "Unauthorized";
             return userver::formats::json::ToString(error.ExtractValue());
         }
-        
+
         const auto request_body = userver::formats::json::FromString(request.RequestBody());
         auto create_request = models::ParseRideCreateRequest(request_body);
-        
+
         double price = CalculatePrice(create_request.start_address, create_request.end_address);
-        
+
         using userver::formats::bson::MakeDoc;
         auto rides_collection = pool_->GetCollection("rides");
-        
-        rides_collection.InsertOne(
+
+        auto result = rides_collection.InsertOne(
             MakeDoc("user_id", userver::formats::bson::Oid(create_request.user_id),
                     "start_address", create_request.start_address,
                     "end_address", create_request.end_address,
@@ -63,18 +66,34 @@ std::string CreateRideHandler::HandleRequestThrow(
                     "price", price,
                     "created_at", userver::formats::bson::Oid())
         );
-        
+
         auto new_ride = rides_collection.FindOne(
             MakeDoc("user_id", userver::formats::bson::Oid(create_request.user_id),
                     "start_address", create_request.start_address,
                     "end_address", create_request.end_address)
         );
-        
+
         std::string ride_id;
         if (new_ride) {
             ride_id = new_ride->operator[]("_id").template As<userver::formats::bson::Oid>().ToString();
         }
-        
+
+        // Публикация события RideCreated
+        try {
+            events::RideCreatedEvent event(ride_id, create_request.user_id,
+                                           create_request.start_address, create_request.end_address,
+                                           price);
+            auto& publisher = events::EventPublisher::GetInstance();
+            if (publisher.IsInitialized()) {
+                publisher.Publish(event);
+                LOG_INFO() << "RideCreated event published for ride: " << ride_id;
+            } else {
+                LOG_WARNING() << "EventPublisher not initialized, skipping RideCreated event";
+            }
+        } catch (const std::exception& e) {
+            LOG_WARNING() << "Failed to publish RideCreated event: " << e.what();
+        }
+
         models::Ride::Response response;
         response.id = ride_id;
         response.user_id = create_request.user_id;
@@ -85,10 +104,10 @@ std::string CreateRideHandler::HandleRequestThrow(
         response.created_at = std::to_string(
             std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())
         );
-        
+
         auto& redis = cache::RedisClient::GetInstance();
         redis.Del(cache::ActiveRidesKey());
-        
+
         request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
         return userver::formats::json::ToString(models::Serialize(response));
     } catch (const std::exception& e) {

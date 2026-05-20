@@ -4,5 +4,12 @@ server-port: 8080
 logger-level: debug
 is-testing: false
 
-# PostgreSQL connection string
 pg-connection: postgresql://taxi_user:taxi_password@postgres:5432/taxi_db
+
+taxi-rabbit-alias:
+  hosts:
+    - rabbitmq
+  port: 5672
+  login: guest
+  password: guest
+  vhost: /

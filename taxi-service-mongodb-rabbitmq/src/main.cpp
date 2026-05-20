@@ -24,12 +24,12 @@
 #include "handlers/swagger_ui_handler.hpp"
 #include "cache/redis_client.hpp"
 #include "rate_limit/token_bucket.hpp"
+#include "events/event_publisher_component.hpp"
 
 int main(int argc, char* argv[]) {
-    // Инициализация Redis (с логами)
     const char* redis_host = std::getenv("REDIS_HOST");
     if (!redis_host) {
-        redis_host = "redis";  // Используем имя сервиса из docker-compose
+        redis_host = "redis";
     }
     
     const char* redis_port_str = std::getenv("REDIS_PORT");
@@ -44,7 +44,6 @@ int main(int argc, char* argv[]) {
         LOG_INFO() << "Redis connected successfully";
     }
     
-    // Настройка rate limiting по умолчанию
     rate_limit::RateLimiter::GetInstance().SetLimit("default", 10.0 / 60.0, 10);
     LOG_INFO() << "Rate limiter initialized with default limit: 10 requests per minute";
     
@@ -56,6 +55,7 @@ int main(int argc, char* argv[]) {
             .Append<userver::clients::dns::Component>()
             .Append<userver::server::handlers::TestsControl>()
             .Append<userver::components::Mongo>("mongo-taxi")
+            .Append<events::EventPublisherComponent>()
             .Append<handlers::OpenApiHandler>()
             .Append<handlers::SwaggerUiHandler>()
             .Append<handlers::RegisterUserHandler>()

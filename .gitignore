@@ -1,3 +1,4 @@
+# Project specific
 analysis.md
 Tasks
 userver
@@ -8,17 +9,50 @@ build/
 *.o
 *.a
 *.so
+*.exe
+*.out
 
 # IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+.clangd
+compile_commands.json
 
 # Test outputs
 test-output/
 *.log
+*.tmp
 
 # OS files
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Docker
+*.pid
+*.tmp
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!cmake/DownloadUserver.cmake
+!cmake/get_cpm.cmake
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+.env.local
