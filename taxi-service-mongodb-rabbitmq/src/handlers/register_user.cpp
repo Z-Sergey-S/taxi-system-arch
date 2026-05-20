@@ -4,7 +4,6 @@
 #include <userver/formats/bson/inline.hpp>
 #include <userver/formats/json/serialize.hpp>
 #include "../models/user.hpp"
-#include "../events/event_producer.hpp"
 
 namespace handlers {
 
@@ -12,8 +11,7 @@ RegisterUserHandler::RegisterUserHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : HttpHandlerBase(config, context),
-      pool_(context.FindComponent<userver::components::Mongo>("mongo-taxi").GetPool()),
-      event_producer_(&context.FindComponent<events::EventProducer>()) {}
+      pool_(context.FindComponent<userver::components::Mongo>("mongo-taxi").GetPool()) {}
 
 std::string RegisterUserHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -26,6 +24,7 @@ std::string RegisterUserHandler::HandleRequestThrow(
         using userver::formats::bson::MakeDoc;
         auto users_collection = pool_->GetCollection("users");
         
+        // Проверка на существование пользователя
         auto existing_user = users_collection.FindOne(MakeDoc("login", create_request.login));
         if (existing_user) {
             request.SetResponseStatus(userver::server::http::HttpStatus::kBadRequest);
@@ -36,6 +35,7 @@ std::string RegisterUserHandler::HandleRequestThrow(
         
         std::string password_hash = "hash_" + create_request.password;
         
+        // Вставка пользователя
         users_collection.InsertOne(
             MakeDoc("login", create_request.login,
                     "first_name", create_request.first_name,
@@ -45,6 +45,7 @@ std::string RegisterUserHandler::HandleRequestThrow(
                     "created_at", userver::formats::bson::Oid())
         );
         
+        // Находим только что созданного пользователя по логину
         auto new_user = users_collection.FindOne(MakeDoc("login", create_request.login));
         std::string user_id;
         if (new_user) {
@@ -60,11 +61,6 @@ std::string RegisterUserHandler::HandleRequestThrow(
         response.created_at = std::to_string(
             std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())
         );
-        
-        event_producer_->PublishUserCreated(user_id, create_request.login,
-                                            create_request.first_name,
-                                            create_request.last_name,
-                                            create_request.email);
         
         request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
         return userver::formats::json::ToString(models::Serialize(response));

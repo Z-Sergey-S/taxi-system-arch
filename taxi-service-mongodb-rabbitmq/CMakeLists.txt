@@ -6,7 +6,7 @@ include(DownloadUserver)
 
 find_package(
     userver
-    COMPONENTS core mongo rabbitmq
+    COMPONENTS core mongo
     QUIET
 )
 if(NOT userver_FOUND)
@@ -40,10 +40,6 @@ add_library(${PROJECT_NAME}_lib STATIC
     src/rate_limit/token_bucket.cpp
     src/rate_limit/rate_limit_middleware.cpp
     
-    # Events (HW6)
-    src/events/event_producer.cpp
-    src/event_consumer/event_logger.cpp
-    
     # Handlers
     src/handlers/register_user.cpp
     src/handlers/find_user_by_login.cpp
@@ -63,7 +59,6 @@ add_library(${PROJECT_NAME}_lib STATIC
 target_link_libraries(${PROJECT_NAME}_lib
     PUBLIC userver::core
            userver::mongo
-           userver::rabbitmq
            ${HIREDIS_LIBRARIES}
 )
 

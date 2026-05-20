@@ -1,15 +1,11 @@
 #pragma once
-
+#include <userver/components/component_list.hpp>
 #include <userver/server/handlers/http_handler_base.hpp>
 #include <userver/storages/mongo/pool.hpp>
 
-namespace events {
-class EventProducer;
-}
-
 namespace handlers {
 
-class RegisterUserHandler : public userver::server::handlers::HttpHandlerBase {
+class RegisterUserHandler final : public userver::server::handlers::HttpHandlerBase {
 public:
     static constexpr std::string_view kName = "handler-register-user";
 
@@ -22,7 +18,6 @@ public:
 
 private:
     userver::storages::mongo::PoolPtr pool_;
-    events::EventProducer* event_producer_;
 };
 
 } // namespace handlers

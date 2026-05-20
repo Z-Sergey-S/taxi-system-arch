@@ -7,7 +7,6 @@
 #include "../cache/redis_client.hpp"
 #include "../cache/cache_keys.hpp"
 #include "../rate_limit/rate_limit_middleware.hpp"
-#include "../events/event_producer.hpp"
 
 namespace handlers {
 
@@ -15,8 +14,7 @@ CompleteRideHandler::CompleteRideHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : HttpHandlerBase(config, context),
-      pool_(context.FindComponent<userver::components::Mongo>("mongo-taxi").GetPool()),
-      event_producer_(&context.FindComponent<events::EventProducer>()) {}
+      pool_(context.FindComponent<userver::components::Mongo>("mongo-taxi").GetPool()) {}
 
 std::string CompleteRideHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -24,6 +22,7 @@ std::string CompleteRideHandler::HandleRequestThrow(
     
     const auto& ride_id = request.GetPathArg("ride_id");
     
+    // Rate limiting
     int remaining = 0, limit = 0, reset = 0;
     std::string user_key = rate_limit::RateLimitMiddleware::GetUserKey(request);
     if (!rate_limit::RateLimitMiddleware::CheckLimit(user_key, remaining, limit, reset)) {
@@ -83,10 +82,6 @@ std::string CompleteRideHandler::HandleRequestThrow(
     
     auto& redis = cache::RedisClient::GetInstance();
     redis.Del(cache::ActiveRidesKey());
-    
-    std::string completed_at = std::to_string(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-    double final_price = ride["price"].template As<double>();
-    event_producer_->PublishRideCompleted(ride_id, driver_id, completed_at, final_price);
     
     userver::formats::json::ValueBuilder response;
     response["message"] = "Ride completed successfully";

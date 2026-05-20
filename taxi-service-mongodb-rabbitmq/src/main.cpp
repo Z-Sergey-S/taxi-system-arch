@@ -6,7 +6,6 @@
 #include <userver/testsuite/testsuite_support.hpp>
 #include <userver/utils/daemon_run.hpp>
 #include <userver/storages/mongo/component.hpp>
-#include <userver/rabbitmq/component.hpp>
 #include <userver/logging/log.hpp>
 #include <cstdlib>
 
@@ -25,14 +24,12 @@
 #include "handlers/swagger_ui_handler.hpp"
 #include "cache/redis_client.hpp"
 #include "rate_limit/token_bucket.hpp"
-#include "events/event_producer.hpp"
-#include "event_consumer/event_logger.hpp"
 
 int main(int argc, char* argv[]) {
     // Инициализация Redis (с логами)
     const char* redis_host = std::getenv("REDIS_HOST");
     if (!redis_host) {
-        redis_host = "redis";
+        redis_host = "redis";  // Используем имя сервиса из docker-compose
     }
     
     const char* redis_port_str = std::getenv("REDIS_PORT");
@@ -59,10 +56,6 @@ int main(int argc, char* argv[]) {
             .Append<userver::clients::dns::Component>()
             .Append<userver::server::handlers::TestsControl>()
             .Append<userver::components::Mongo>("mongo-taxi")
-            .Append<userver::components::RabbitMQ>("rabbit-producer")
-            .Append<userver::components::RabbitMQ>("rabbit-consumer")
-            .Append<events::EventProducer>()
-            .Append<event_consumer::EventLogger>()
             .Append<handlers::OpenApiHandler>()
             .Append<handlers::SwaggerUiHandler>()
             .Append<handlers::RegisterUserHandler>()

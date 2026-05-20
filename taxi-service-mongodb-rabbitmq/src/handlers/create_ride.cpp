@@ -8,7 +8,6 @@
 #include "../cache/redis_client.hpp"
 #include "../cache/cache_keys.hpp"
 #include "../rate_limit/rate_limit_middleware.hpp"
-#include "../events/event_producer.hpp"
 #include <cmath>
 
 namespace handlers {
@@ -17,8 +16,7 @@ CreateRideHandler::CreateRideHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : HttpHandlerBase(config, context),
-      pool_(context.FindComponent<userver::components::Mongo>("mongo-taxi").GetPool()),
-      event_producer_(&context.FindComponent<events::EventProducer>()) {}
+      pool_(context.FindComponent<userver::components::Mongo>("mongo-taxi").GetPool()) {}
 
 double CalculatePrice(const std::string& start_address, const std::string& end_address) {
     double base_price = 50.0;
@@ -31,6 +29,7 @@ std::string CreateRideHandler::HandleRequestThrow(
     userver::server::request::RequestContext&) const {
     
     try {
+        // Rate limiting
         int remaining = 0, limit = 0, reset = 0;
         std::string user_key = rate_limit::RateLimitMiddleware::GetUserKey(request);
         if (!rate_limit::RateLimitMiddleware::CheckLimit(user_key, remaining, limit, reset)) {
@@ -89,11 +88,6 @@ std::string CreateRideHandler::HandleRequestThrow(
         
         auto& redis = cache::RedisClient::GetInstance();
         redis.Del(cache::ActiveRidesKey());
-        
-        event_producer_->PublishRideCreated(ride_id, create_request.user_id,
-                                            create_request.start_address,
-                                            create_request.end_address,
-                                            price, response.created_at);
         
         request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
         return userver::formats::json::ToString(models::Serialize(response));

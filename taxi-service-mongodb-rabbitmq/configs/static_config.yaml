@@ -19,7 +19,7 @@ components_manager:
             loggers:
                 default:
                     file_path: '@stderr'
-                    level: debug
+                    level: debug  # Changed from 'info' to 'debug' to see all logs
                     overflow_behavior: discard
 
         dynamic-config:
@@ -45,25 +45,6 @@ components_manager:
             so_timeout: 10s
             initial_size: 5
             max_size: 20
-
-        # === RABBITMQ PRODUCER ===
-        rabbit-producer:
-            uri: amqp://taxi:taxi123@rabbitmq:5672
-            exchange: taxi.events
-            exchange_type: topic
-            task_processor: main-task-processor
-
-        # === RABBITMQ CONSUMER ===
-        rabbit-consumer:
-            uri: amqp://taxi:taxi123@rabbitmq:5672
-            queue: event_logger
-            routing_keys: ["#"]
-            consumer: event-logger
-            task_processor: main-task-processor
-
-        # === EVENT LOGGER CONSUMER COMPONENT ===
-        event-logger:
-            load-enabled: true
 
         # === SWAGGER HANDLERS ===
         handler-openapi:

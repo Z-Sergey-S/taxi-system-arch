@@ -4,7 +4,6 @@
 #include <userver/formats/bson/inline.hpp>
 #include <userver/formats/json/serialize.hpp>
 #include "../models/driver.hpp"
-#include "../events/event_producer.hpp"
 
 namespace handlers {
 
@@ -12,8 +11,7 @@ RegisterDriverHandler::RegisterDriverHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : HttpHandlerBase(config, context),
-      pool_(context.FindComponent<userver::components::Mongo>("mongo-taxi").GetPool()),
-      event_producer_(&context.FindComponent<events::EventProducer>()) {}
+      pool_(context.FindComponent<userver::components::Mongo>("mongo-taxi").GetPool()) {}
 
 std::string RegisterDriverHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -26,6 +24,7 @@ std::string RegisterDriverHandler::HandleRequestThrow(
         using userver::formats::bson::MakeDoc;
         auto drivers_collection = pool_->GetCollection("drivers");
         
+        // Проверка на существование водителя по логину
         auto existing_driver = drivers_collection.FindOne(MakeDoc("login", create_request.login));
         if (existing_driver) {
             request.SetResponseStatus(userver::server::http::HttpStatus::kBadRequest);
@@ -34,8 +33,10 @@ std::string RegisterDriverHandler::HandleRequestThrow(
             return userver::formats::json::ToString(error.ExtractValue());
         }
         
+        // Хешируем пароль
         std::string password_hash = "hash_" + create_request.password;
         
+        // Вставка водителя
         drivers_collection.InsertOne(
             MakeDoc("login", create_request.login,
                     "first_name", create_request.first_name,
@@ -48,6 +49,7 @@ std::string RegisterDriverHandler::HandleRequestThrow(
                     "created_at", userver::formats::bson::Oid())
         );
         
+        // Находим только что созданного водителя
         auto new_driver = drivers_collection.FindOne(MakeDoc("login", create_request.login));
         std::string driver_id;
         if (new_driver) {
@@ -65,10 +67,6 @@ std::string RegisterDriverHandler::HandleRequestThrow(
         response.created_at = std::to_string(
             std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())
         );
-        
-        event_producer_->PublishDriverRegistered(driver_id, create_request.login,
-                                                 create_request.car_model,
-                                                 create_request.car_number);
         
         request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
         return userver::formats::json::ToString(models::Serialize(response));
